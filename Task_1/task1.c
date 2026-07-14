@@ -89,3 +89,96 @@ pthread_mutex_t ui_mutex;
 ───────────────────────────────────────────────── */
 int unsafe_counter = 0;  /* Without synchronization - for race demo */
 pthread_mutex_t race_mutex;  /* For safe version */
+
+/* ─────────────────────────────────────────────────
+   DRAW HELPERS
+───────────────────────────────────────────────── */
+
+void print_bar(int done, int total, const char *color) {
+    int filled = (done * BAR_WIDTH) / total;
+    printf("%s[", color);
+    for (int i = 0; i < BAR_WIDTH; i++)
+        printf(i < filled ? "\xe2\x96\x88" : "\xe2\x96\x91");
+    printf("]" RESET);
+}
+
+void print_mutex_row(const char *label, int locked, int holder) {
+    printf("    %-16s: ", label);
+    if (locked)
+        printf(RED "[LOCKED]" RESET "  held by %s%s\n" RESET,
+               T_COLOR[holder], T_NAME[holder]);
+    else
+        printf(GREEN "[FREE]" RESET "\n");
+}
+
+/* ─────────────────────────────────────────────────
+   DRAW UI
+───────────────────────────────────────────────── */
+void draw_ui(void) {
+    printf(CLEAR);
+
+    /* Header */
+    printf(BOLD BLUE
+        "\n"
+        "  \xe2\x95\x94\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x97\n"
+        "  \xe2\x95\x91  ST5004CEM \xe2\x80\x94 Task 1: Complete Thread Management   \xe2\x95\x91\n"
+        "  \xe2\x95\x9a\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x90\xe2\x95\x9d\n"
+        RESET "\n");
+
+    /* Shared counter */
+    printf(BOLD "  Shared Counter : " RESET GREEN BOLD "%d" RESET
+           DIM "  (target: %d  =  %d threads x %d rounds)\n\n" RESET,
+           shared_counter,
+           NUM_THREADS * TOTAL_WORK, NUM_THREADS, TOTAL_WORK);
+
+    /* Thread table header */
+    printf(BOLD "  %-12s  %-8s  %-24s  %s\n" RESET,
+           "Thread", "Rounds", "Progress", "State");
+    printf(DIM "  ────────────  ────────  ────────────────────────  ─────────\n" RESET);
+
+    /* One row per thread */
+    for (int i = 0; i < NUM_THREADS; i++) {
+        ThreadArgs *t = &targs[i];
+
+        const char *sc =
+            strcmp(t->state, "DONE")    == 0 ? GREEN        :
+            strcmp(t->state, "RUNNING") == 0 ? T_COLOR[i]   :
+            strcmp(t->state, "LOCKING") == 0 ? YELLOW       :
+            strcmp(t->state, "SEM")     == 0 ? MAGENTA      :
+            strcmp(t->state, "RES-A")   == 0 ? YELLOW       :
+            strcmp(t->state, "RES-B")   == 0 ? YELLOW       : DIM;
+
+        printf("  %s%-12s" RESET "  %s%d / %d%s  ",
+               T_COLOR[i], T_NAME[i],
+               BOLD, t->rounds_done, TOTAL_WORK, RESET);
+
+        print_bar(t->rounds_done, TOTAL_WORK, T_COLOR[i]);
+        printf("  %s%-9s" RESET "\n", sc, t->state);
+    }
+
+    /* Scheduler current turn */
+    printf("\n" BOLD "  Scheduler turn  : " RESET);
+    printf("%s%s\n" RESET, T_COLOR[current_turn], T_NAME[current_turn]);
+
+    /* Semaphore status */
+    printf("\n" BOLD "  Semaphore count  : " RESET);
+    if (sem_available > 0)
+        printf(GREEN "%d" RESET " (available)\n", sem_available);
+    else
+        printf(RED "%d" RESET " (fully used)\n", sem_available);
+
+    /* Mutex status panel */
+    printf("\n" BOLD "  Mutex locks:\n" RESET);
+    print_mutex_row("counter_mutex",   counter_mutex_locked, counter_mutex_holder);
+    print_mutex_row("scheduler_mutex", sched_mutex_locked,   sched_mutex_holder);
+    print_mutex_row("resource_A",      resA_locked,          resA_holder);
+    print_mutex_row("resource_B",      resB_locked,          resB_holder);
+
+    /* Features Legend */
+    printf("\n" BOLD "  Features:\n" RESET);
+    printf(DIM "    ├─ " GREEN "✓" RESET DIM " Round-robin scheduling\n");
+    printf(DIM "    ├─ " GREEN "✓" RESET DIM " Mutex synchronization\n");
+    printf(DIM "    ├─ " GREEN "✓" RESET DIM " Semaphore (max 2 concurrent access)\n");
+    printf(DIM "    ├─ " GREEN "✓" RESET DIM " Deadlock prevention (ordered locking)\n");
+    printf(DIM "    └─ " GREEN "✓" RESET DIM " Race condition handling\n" RESET);
+}
