@@ -327,3 +327,32 @@ void *thread_task(void *arg) {
 
     return NULL;
 }
+
+/* ─────────────────────────────────────────────────
+   RACE CONDITION DEMONSTRATION THREADS
+───────────────────────────────────────────────── */
+
+/* WITHOUT synchronization - shows race condition */
+void* thread_race_unsafe(void* arg) {
+    int id = *(int*)arg;
+
+    for (int i = 0; i < 100000; i++) {
+        unsafe_counter++;  /* RACE CONDITION - not atomic! */
+    }
+
+    return NULL;
+}
+
+/* WITH synchronization - prevents race condition */
+void* thread_race_safe(void* arg) {
+    int id = *(int*)arg;
+    static int safe_counter = 0;
+
+    for (int i = 0; i < 100000; i++) {
+        pthread_mutex_lock(&race_mutex);
+        safe_counter++;
+        pthread_mutex_unlock(&race_mutex);
+    }
+
+    return NULL;
+}
