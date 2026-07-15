@@ -182,3 +182,148 @@ void draw_ui(void) {
     printf(DIM "    ├─ " GREEN "✓" RESET DIM " Deadlock prevention (ordered locking)\n");
     printf(DIM "    └─ " GREEN "✓" RESET DIM " Race condition handling\n" RESET);
 }
+/* ─────────────────────────────────────────────────
+   THREAD FUNCTION
+───────────────────────────────────────────────── */
+void *thread_task(void *arg) {
+    ThreadArgs *t = (ThreadArgs *)arg;
+    int id = t->thread_id;
+
+    for (int round = 0; round < TOTAL_WORK; round++) {
+
+        /* ── Step 1: wait for our turn ─────────────── */
+        pthread_mutex_lock(&ui_mutex);
+        strcpy(t->state, "WAITING");
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_lock(&scheduler_mutex);
+
+        pthread_mutex_lock(&ui_mutex);
+        sched_mutex_locked = 1;
+        sched_mutex_holder = id;
+        pthread_mutex_unlock(&ui_mutex);
+
+        while (current_turn != id)
+            pthread_cond_wait(&turn_cond, &scheduler_mutex);
+
+        pthread_mutex_lock(&ui_mutex);
+        sched_mutex_locked = 0;
+        sched_mutex_holder = -1;
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_unlock(&scheduler_mutex);
+
+        /* ── Step 2: simulate work ──────────────────── */
+        pthread_mutex_lock(&ui_mutex);
+        strcpy(t->state, "RUNNING");
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        sleep(TIME_SLICE);
+
+        /* ── Step 3: update shared counter safely ───── */
+        pthread_mutex_lock(&ui_mutex);
+        strcpy(t->state, "LOCKING");
+        counter_mutex_locked = 1;
+        counter_mutex_holder = id;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_lock(&counter_mutex);
+        shared_counter++;
+        t->rounds_done++;
+        pthread_mutex_unlock(&counter_mutex);
+
+        pthread_mutex_lock(&ui_mutex);
+        counter_mutex_locked = 0;
+        counter_mutex_holder = -1;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        /* ── Step 4: SEMAPHORE demonstration ────────── */
+        pthread_mutex_lock(&ui_mutex);
+        strcpy(t->state, "SEM");
+        sem_available--;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        sem_wait(&resource_semaphore);  /* Acquire semaphore */
+        printf("%s[Thread %d] Acquired semaphore (resource access)%s\n", 
+               T_COLOR[id], id, RESET);
+
+        /* Simulate resource access */
+        sleep(1);
+
+        sem_post(&resource_semaphore);  /* Release semaphore */
+
+        pthread_mutex_lock(&ui_mutex);
+        sem_available++;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        /* ── Step 5: deadlock-safe two-resource access ─ */
+        pthread_mutex_lock(&ui_mutex);
+        strcpy(t->state, "RES-A");
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_lock(&resource_A);
+        pthread_mutex_lock(&ui_mutex);
+        resA_locked = 1;
+        resA_holder = id;
+        strcpy(t->state, "RES-B");
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_lock(&resource_B);
+        pthread_mutex_lock(&ui_mutex);
+        resB_locked = 1;
+        resB_holder = id;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        /* Simulate work with both resources */
+        usleep(100000);
+
+        pthread_mutex_unlock(&resource_B);
+        pthread_mutex_lock(&ui_mutex);
+        resB_locked = 0;
+        resB_holder = -1;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_unlock(&resource_A);
+        pthread_mutex_lock(&ui_mutex);
+        resA_locked = 0;
+        resA_holder = -1;
+        draw_ui();
+        pthread_mutex_unlock(&ui_mutex);
+
+        /* ── Step 6: pass turn to next thread ──────── */
+        pthread_mutex_lock(&scheduler_mutex);
+
+        pthread_mutex_lock(&ui_mutex);
+        sched_mutex_locked = 1;
+        sched_mutex_holder = id;
+        pthread_mutex_unlock(&ui_mutex);
+
+        current_turn = (current_turn + 1) % NUM_THREADS;
+        pthread_cond_broadcast(&turn_cond);
+
+        pthread_mutex_lock(&ui_mutex);
+        sched_mutex_locked = 0;
+        sched_mutex_holder = -1;
+        pthread_mutex_unlock(&ui_mutex);
+
+        pthread_mutex_unlock(&scheduler_mutex);
+    }
+
+    /* All rounds done */
+    pthread_mutex_lock(&ui_mutex);
+    strcpy(t->state, "DONE");
+    draw_ui();
+    pthread_mutex_unlock(&ui_mutex);
+
+    return NULL;
+}
