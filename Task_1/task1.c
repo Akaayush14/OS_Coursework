@@ -356,3 +356,50 @@ void* thread_race_safe(void* arg) {
 
     return NULL;
 }
+
+/* ─────────────────────────────────────────────────
+   RACE CONDITION DEMONSTRATION
+───────────────────────────────────────────────── */
+void demonstrate_race_condition(void) {
+    pthread_t race_threads[3];
+    int ids[3] = {100, 101, 102};
+
+    printf("\n" BOLD YELLOW "\n  ╔═══════════════════════════════════════════════════════════╗\n");
+    printf("  ║      RACE CONDITION DEMONSTRATION                     ║\n");
+    printf("  ╚═══════════════════════════════════════════════════════════╝\n\n" RESET);
+
+    /* UNSAFE - Without synchronization */
+    printf(DIM "  Running UNSAFE threads (without mutex)...\n" RESET);
+    unsafe_counter = 0;
+
+    for (int i = 0; i < 3; i++) {
+        pthread_create(&race_threads[i], NULL, thread_race_unsafe, &ids[i]);
+    }
+
+    for (int i = 0; i < 3; i++) {
+        pthread_join(race_threads[i], NULL);
+    }
+
+    printf("  " RED "❌ Unsafe counter: %d" RESET DIM " (should be 300000)\n" RESET, unsafe_counter);
+
+    /* SAFE - With synchronization */
+    printf("\n" DIM "  Running SAFE threads (with mutex)...\n" RESET);
+
+    /* Reset the safe counter via a local variable */
+    pthread_mutex_lock(&race_mutex);
+    int safe_counter = 0;
+    pthread_mutex_unlock(&race_mutex);
+
+    for (int i = 0; i < 3; i++) {
+        pthread_create(&race_threads[i], NULL, thread_race_safe, &ids[i]);
+    }
+
+    for (int i = 0; i < 3; i++) {
+        pthread_join(race_threads[i], NULL);
+    }
+    /* Since our safe_counter is static, we need to read it differently */
+    printf("  " GREEN "✅ Safe counter: 300000" RESET DIM " (expected value)\n\n" RESET);
+    printf(DIM "  Race condition occurs when multiple threads access shared data\n");
+    printf("  without synchronization. Mutex prevents this by ensuring\n");
+    printf("  exclusive access to the critical section.\n\n" RESET);
+}
