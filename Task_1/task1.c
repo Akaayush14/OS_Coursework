@@ -403,3 +403,68 @@ void demonstrate_race_condition(void) {
     printf("  without synchronization. Mutex prevents this by ensuring\n");
     printf("  exclusive access to the critical section.\n\n" RESET);
 }
+
+/* ─────────────────────────────────────────────────
+   MAIN
+───────────────────────────────────────────────── */
+int main(void) {
+    pthread_t threads[NUM_THREADS];
+
+    printf(CLEAR);
+
+    /* Initialise all mutexes, semaphore, and condition variable */
+    pthread_mutex_init(&counter_mutex,   NULL);
+    pthread_mutex_init(&scheduler_mutex, NULL);
+    pthread_mutex_init(&ui_mutex,        NULL);
+    pthread_mutex_init(&resource_A,      NULL);
+    pthread_mutex_init(&resource_B,      NULL);
+    pthread_mutex_init(&race_mutex,      NULL);
+    sem_init(&resource_semaphore, 0, 2);   /* Initialize semaphore with 2 */
+    pthread_cond_init(&turn_cond,        NULL);
+
+    /* Set up per-thread state */
+    for (int i = 0; i < NUM_THREADS; i++) {
+        targs[i].thread_id   = i;
+        targs[i].rounds_done = 0;
+        strcpy(targs[i].state, "WAITING");
+    }
+
+    /* Draw the initial UI */
+    draw_ui();
+
+    /* Spawn all threads */
+    for (int i = 0; i < NUM_THREADS; i++) {
+        if (pthread_create(&threads[i], NULL, thread_task, &targs[i]) != 0) {
+            fprintf(stderr, "Error: could not create thread %d\n", i);
+            exit(EXIT_FAILURE);
+        }
+    }
+
+    /* Wait for all threads to finish */
+    for (int i = 0; i < NUM_THREADS; i++)
+        pthread_join(threads[i], NULL);
+
+    /* Final result */
+    pthread_mutex_lock(&ui_mutex);
+    draw_ui();
+    printf("\n" BOLD GREEN
+           "  All threads completed. No deadlock occurred.\n"
+           "  Final shared counter = %d  (expected %d)\n\n" RESET,
+           shared_counter, NUM_THREADS * TOTAL_WORK);
+    pthread_mutex_unlock(&ui_mutex);
+
+    /* Demonstrate race condition */
+    demonstrate_race_condition();
+
+    /* Clean up */
+    pthread_mutex_destroy(&counter_mutex);
+    pthread_mutex_destroy(&scheduler_mutex);
+    pthread_mutex_destroy(&ui_mutex);
+    pthread_mutex_destroy(&resource_A);
+    pthread_mutex_destroy(&resource_B);
+    pthread_mutex_destroy(&race_mutex);
+    sem_destroy(&resource_semaphore);
+    pthread_cond_destroy(&turn_cond);
+
+    return 0;
+}
