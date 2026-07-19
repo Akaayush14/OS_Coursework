@@ -118,7 +118,7 @@ void run_test_cases(Simulation *sim);
  */
 void init_simulation(Simulation *sim, int page_size, int num_frames, int num_pages) {
     if (num_pages > MAX_PAGES) {
-        printf("Warning: num_pages (%d) exceeds MAX_PAGES (%d). Truncating.\n", 
+        printf("Warning: num_pages (%d) exceeds MAX_PAGES (%d). Truncating.\n",
                num_pages, MAX_PAGES);
         num_pages = MAX_PAGES;
     }
@@ -256,5 +256,140 @@ void generate_reference_string_locality(Simulation *sim) {
         int offset = rand() % locality_size;
         int page = (base + offset) % sim->num_pages;
         sim->reference_string[i] = page;
+    }
+}
+
+/**
+ * Find a free frame in memory
+ * Returns the index of a free frame, or -1 if none are free
+ */
+int find_free_frame(Simulation *sim) {
+    for (int i = 0; i < sim->num_frames; i++) {
+        if (!sim->frames[i].occupied) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * FIFO page replacement algorithm
+ * Returns the frame index where the page should be loaded
+ */
+int fifo_page_replacement(Simulation *sim, int page_number) {
+    // Check if there's a free frame
+    int free_frame = find_free_frame(sim);
+    if (free_frame != -1) {
+        return free_frame;
+    }
+
+    // No free frame - use FIFO to evict
+    // Get the frame at the front of the FIFO queue
+    int frame_to_evict = sim->fifo_queue[sim->fifo_front];
+    sim->fifo_front = (sim->fifo_front + 1) % MAX_FRAMES;
+    sim->fifo_count--;
+
+    return frame_to_evict;
+}
+
+/**
+ * LRU page replacement algorithm
+ * Returns the frame index where the page should be loaded
+ */
+int lru_page_replacement(Simulation *sim, int page_number) {
+    // Check if there's a free frame
+    int free_frame = find_free_frame(sim);
+    if (free_frame != -1) {
+        return free_frame;
+    }
+
+    // No free frame - use LRU to evict
+    // Find the frame with the oldest last_used timestamp
+    int oldest_time = INT_MAX;
+    int frame_to_evict = 0;
+
+    for (int i = 0; i < sim->num_frames; i++) {
+        if (sim->frames[i].occupied && sim->frames[i].last_used < oldest_time) {
+            oldest_time = sim->frames[i].last_used;
+            frame_to_evict = i;
+        }
+    }
+
+    return frame_to_evict;
+}
+
+/**
+ * Load a page into a specific frame
+ */
+void load_page(Simulation *sim, int page_number, int frame_index, int algorithm) {
+    // If the frame is occupied, evict the current page
+    if (sim->frames[frame_index].occupied) {
+        evict_page(sim, frame_index);
+        sim->stats.page_replacements++;
+    }
+
+    // Load the new page
+    sim->frames[frame_index].occupied = true;
+    sim->frames[frame_index].page_number = page_number;
+    sim->frames[frame_index].load_time = sim->current_time;
+    sim->frames[frame_index].last_used = sim->current_time;
+
+    // Update page table
+    sim->page_table[page_number].present = true;
+    sim->page_table[page_number].frame_number = frame_index;
+    sim->page_table[page_number].load_time = sim->current_time;
+    sim->page_table[page_number].last_used = sim->current_time;
+
+    // For FIFO, add the frame to the queue
+    if (algorithm == 0) { // FIFO
+        sim->fifo_rear = (sim->fifo_rear + 1) % MAX_FRAMES;
+        sim->fifo_queue[sim->fifo_rear] = frame_index;
+        sim->fifo_count++;
+    }
+}
+
+/**
+ * Evict a page from a frame
+ */
+void evict_page(Simulation *sim, int frame_index) {
+    if (sim->frames[frame_index].occupied) {
+        int page_number = sim->frames[frame_index].page_number;
+        sim->page_table[page_number].present = false;
+        sim->page_table[page_number].frame_number = -1;
+        sim->frames[frame_index].occupied = false;
+        sim->frames[frame_index].page_number = -1;
+    }
+}
+
+/**
+ * Access memory - returns true if hit, false if fault
+ */
+bool access_memory(Simulation *sim, int page_number, int algorithm) {
+    sim->current_time++;
+    sim->stats.total_references++;
+    // Check if page is in memory
+    if (page_number >= 0 && page_number < sim->num_pages &&
+        sim->page_table[page_number].present) {
+        // Page hit - update access time
+        int frame_index = sim->page_table[page_number].frame_number;
+        sim->frames[frame_index].last_used = sim->current_time;
+        sim->page_table[page_number].last_used = sim->current_time;
+        sim->stats.page_hits++;
+        return true; // Hit
+    } else {
+        // Page fault
+        sim->stats.page_faults++;
+
+        // Determine which frame to use
+        int frame_index;
+        if (algorithm == 0) {
+            frame_index = fifo_page_replacement(sim, page_number);
+        } else {
+            frame_index = lru_page_replacement(sim, page_number);
+        }
+
+        // Load the page into the frame
+        load_page(sim, page_number, frame_index, algorithm);
+        return false; // Fault
     }
 }
