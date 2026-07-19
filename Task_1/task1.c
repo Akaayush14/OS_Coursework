@@ -249,7 +249,7 @@ void *thread_task(void *arg) {
         pthread_mutex_unlock(&ui_mutex);
 
         sem_wait(&resource_semaphore);  /* Acquire semaphore */
-        printf("%s[Thread %d] Acquired semaphore (resource access)%s\n", 
+        printf("%s[Thread %d] Acquired semaphore (resource access)%s\n",
                T_COLOR[id], id, RESET);
 
         /* Simulate resource access */

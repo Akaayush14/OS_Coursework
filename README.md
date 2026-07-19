@@ -13,7 +13,7 @@ This repository contains the coursework for ST5004CEM Operating Systems and Secu
 | Task   | Topic                                               | Status      |
 |--------|-----------------------------------------------------|-------------|
 | Task 1 | Process Management and Threading                    | Completed   |
-| Task 2 | Memory Management Simulation                        | Pending     |
+| Task 2 | Memory Management Simulation                        | In Progress |
 | Task 3 | File System Operations and Security                 | Pending     |
 | Task 4 | Network Programming and IPC                         | Pending     |
 
