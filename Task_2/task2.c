@@ -546,3 +546,116 @@ void print_comparison_report(Simulation *sim, const char *algo1, const char *alg
     printf("- LRU: More complex, requires timestamp tracking, O(n) replacement\n");
     printf("- LRU usually provides higher hit ratios for most workloads\n");
 }
+
+/**
+ * Print a header with title
+ */
+void print_header(const char *title) {
+    printf("\n");
+    printf("============================================================\n");
+    printf("  %s\n", title);
+    printf("============================================================\n");
+}
+
+/**
+ * Print a separator line
+ */
+void print_separator(void) {
+    printf("------------------------------------------------------------\n");
+}
+
+/**
+ * Clear the screen (platform independent)
+ */
+void clear_screen(void) {
+    printf("\033[2J\033[1;1H");
+}
+
+/**
+ * Wait for user input
+ */
+void wait_for_user(void) {
+    printf("\nPress Enter to continue...");
+    getchar();
+}
+
+/**
+ * Run predefined test cases to demonstrate algorithms
+ */
+void run_test_cases(Simulation *sim) {
+    print_header("TEST CASES");
+    printf("\n=== Test Case 1: Basic Reference String ===\n");
+    printf("Reference String: 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5\n");
+    printf("Frames: 3\n\n");
+
+    // Create a custom reference string for testing
+    int test_refs[] = {1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5};
+    int test_len = 12;
+
+    // Save original
+    int original_refs[MAX_REFERENCE_STRING];
+    int original_len = sim->reference_length;
+    memcpy(original_refs, sim->reference_string, sizeof(int) * original_len);
+
+    // Set test reference string
+    sim->reference_length = test_len;
+    for (int i = 0; i < test_len; i++) {
+        sim->reference_string[i] = test_refs[i];
+    }
+
+    // Run FIFO
+    Simulation test_sim;
+    memcpy(&test_sim, sim, sizeof(Simulation));
+    printf("FIFO Results:\n");
+    run_simulation(&test_sim, 0);
+
+    // Run LRU
+    printf("\nLRU Results:\n");
+    memcpy(&test_sim, sim, sizeof(Simulation));
+    run_simulation(&test_sim, 1);
+
+    // Restore original reference string
+    sim->reference_length = original_len;
+    memcpy(sim->reference_string, original_refs, sizeof(int) * original_len);
+
+    // Test Case 2: Belady's Anomaly Demonstration
+    printf("\n=== Test Case 2: Belady's Anomaly Demonstration ===\n");
+    printf("Reference String: 1, 2, 3, 4, 1, 2, 5, 1, 2, 3, 4, 5\n");
+    printf("Testing FIFO with 3 frames vs 4 frames\n\n");
+
+    // Test FIFO with 3 frames
+    printf("FIFO with 3 frames:\n");
+    sim->num_frames = 3;
+    memcpy(&test_sim, sim, sizeof(Simulation));
+    run_simulation(&test_sim, 0);
+
+    // Test FIFO with 4 frames
+    printf("\nFIFO with 4 frames:\n");
+    sim->num_frames = 4;
+    memcpy(&test_sim, sim, sizeof(Simulation));
+    run_simulation(&test_sim, 0);
+
+    // Restore original frame count
+    sim->num_frames = 3;
+
+    printf("\n=== Test Case 3: Locality Pattern ===\n");
+    printf("Reference String: 1, 2, 3, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4\n");
+    printf("Frames: 3\n\n");
+
+    int test_refs2[] = {1, 2, 3, 1, 2, 3, 4, 1, 2, 3, 4, 1, 2, 3, 4};
+    int test_len2 = 15;
+    sim->reference_length = test_len2;
+    for (int i = 0; i < test_len2; i++) {
+        sim->reference_string[i] = test_refs2[i];
+    }
+
+    // Run FIFO
+    memcpy(&test_sim, sim, sizeof(Simulation));
+    printf("FIFO Results:\n");
+    run_simulation(&test_sim, 0);
+
+    // Run LRU
+    printf("\nLRU Results:\n");
+    memcpy(&test_sim, sim, sizeof(Simulation));
+    run_simulation(&test_sim, 1);
+}
