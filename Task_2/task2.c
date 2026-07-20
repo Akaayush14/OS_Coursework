@@ -659,3 +659,139 @@ void run_test_cases(Simulation *sim) {
     memcpy(&test_sim, sim, sizeof(Simulation));
     run_simulation(&test_sim, 1);
 }
+/**
+ * Interactive menu for the simulation
+ */
+void show_menu(Simulation *sim) {
+    int choice;
+    int page_size, num_frames, num_pages;
+    int algorithm_choice;
+    do {
+        clear_screen();
+        print_header("MEMORY MANAGEMENT SIMULATION");
+        printf("\n");
+        printf("Current Configuration:\n");
+        printf("  Page Size:     %d bytes\n", sim->page_size);
+        printf("  Frames:        %d\n", sim->num_frames);
+        printf("  Pages:         %d\n", sim->num_pages);
+        printf("  Reference Len: %d\n", sim->reference_length);
+        printf("\n");
+
+        printf("MENU:\n");
+        printf("  1. Run FIFO Algorithm\n");
+        printf("  2. Run LRU Algorithm\n");
+        printf("  3. Run Comparison (FIFO vs LRU)\n");
+        printf("  4. Configure Simulation\n");
+        printf("  5. Generate New Reference String\n");
+        printf("  6. View Page Table\n");
+        printf("  7. View Frame State\n");
+        printf("  8. Run Test Cases\n");
+        printf("  0. Exit\n");
+        printf("\n");
+        printf("Enter choice: ");
+        scanf("%d", &choice);
+        getchar(); // Consume newline
+
+        switch(choice) {
+            case 1:
+                clear_screen();
+                run_simulation(sim, 0);
+                wait_for_user();
+                break;
+
+            case 2:
+                clear_screen();
+                run_simulation(sim, 1);
+                wait_for_user();
+                break;
+
+            case 3:
+                clear_screen();
+                run_comparison(sim);
+                wait_for_user();
+                break;
+
+            case 4:
+                clear_screen();
+                printf("Configure Simulation\n");
+                printf("--------------------\n");
+                printf("Enter page size (bytes): ");
+                scanf("%d", &page_size);
+                printf("Enter number of frames: ");
+                scanf("%d", &num_frames);
+                printf("Enter number of pages: ");
+                scanf("%d", &num_pages);
+                if (num_frames > MAX_FRAMES || num_pages > MAX_PAGES) {
+                    printf("Warning: Values exceed maximum limits!\n");
+                    printf("Max frames: %d, Max pages: %d\n", MAX_FRAMES, MAX_PAGES);
+                }
+                init_simulation(sim, page_size, num_frames, num_pages);
+                printf("\nConfiguration updated!\n");
+                wait_for_user();
+                break;
+
+            case 5:
+                clear_screen();
+                printf("Generating new reference string...\n");
+                generate_reference_string(sim);
+                printf("New reference string generated with %d references.\n",
+                       sim->reference_length);
+                wait_for_user();
+                break;
+
+            case 6:
+                clear_screen();
+                print_page_table(sim);
+                wait_for_user();
+                break;
+
+            case 7:
+                clear_screen();
+                print_frame_state(sim);
+                wait_for_user();
+                break;
+
+            case 8:
+                clear_screen();
+                run_test_cases(sim);
+                wait_for_user();
+                break;
+
+            case 0:
+                printf("Exiting...\n");
+                break;
+
+            default:
+                printf("Invalid choice. Please try again.\n");
+                wait_for_user();
+        }
+    } while (choice != 0);
+}
+
+// ==================== MAIN ====================
+
+/**
+ * Main entry point
+ */
+int main(int argc, char *argv[]) {
+    // Seed random number generator
+    srand(time(NULL));
+
+    printf("\n");
+    printf("============================================================\n");
+    printf("  MEMORY MANAGEMENT SIMULATION\n");
+    printf("  ST5004CEM - Operating Systems and Security\n");
+    printf("  Task 2: Page Replacement Algorithms (FIFO & LRU)\n");
+    printf("============================================================\n");
+    printf("\n");
+
+    // Initialize simulation with default values
+    Simulation sim;
+    init_simulation(&sim, 4096, 3, 10);
+
+    // Show menu
+    show_menu(&sim);
+
+    printf("\nSimulation complete.\n");
+    return 0;
+}
