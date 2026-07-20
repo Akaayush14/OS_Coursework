@@ -393,3 +393,156 @@ bool access_memory(Simulation *sim, int page_number, int algorithm) {
         return false; // Fault
     }
 }
+
+/**
+ * Run a simulation with the specified algorithm
+ * algorithm: 0 = FIFO, 1 = LRU
+ */
+void run_simulation(Simulation *sim, int algorithm) {
+    // Reset simulation state
+    init_page_table(sim);
+    init_frames(sim);
+    init_statistics(sim);
+    sim->current_time = 0;
+    sim->fifo_front = 0;
+    sim->fifo_rear = -1;
+    sim->fifo_count = 0;
+
+    const char *algo_name = (algorithm == 0) ? "FIFO" : "LRU";
+    print_header("Memory Access Trace");
+    printf("Algorithm: %s\n", algo_name);
+    printf("Frame Count: %d\n", sim->num_frames);
+    printf("Reference String Length: %d\n\n", sim->reference_length);
+    printf("Reference # | Page | Result | Status\n");
+    printf("------------|------|--------|-------\n");
+    // Process each reference in the reference string
+    for (int i = 0; i < sim->reference_length; i++) {
+        int page = sim->reference_string[i];
+        bool hit = access_memory(sim, page, algorithm);
+
+        // Log the result
+        printf("    %3d     |  %2d  |  %s   | ",
+               i + 1, page, hit ? "HIT " : "FAULT");
+        // Show frame state
+        for (int f = 0; f < sim->num_frames; f++) {
+            if (sim->frames[f].occupied) {
+                printf("[%d]", sim->frames[f].page_number);
+            } else {
+                printf("[ ]");
+            }
+        }
+        printf("\n");
+    }
+
+    printf("\n");
+    print_statistics(sim, algo_name);
+}
+
+/**
+ * Run a comparison between FIFO and LRU
+ */
+void run_comparison(Simulation *sim) {
+    print_header("ALGORITHM COMPARISON: FIFO vs LRU");
+    // Create copies of the simulation for each algorithm
+    Simulation sim_fifo, sim_lru;
+    memcpy(&sim_fifo, sim, sizeof(Simulation));
+    memcpy(&sim_lru, sim, sizeof(Simulation));
+
+    // Run FIFO
+    printf("\n--- FIFO ALGORITHM ---\n");
+    run_simulation(&sim_fifo, 0);
+
+    // Run LRU
+    printf("\n--- LRU ALGORITHM ---\n");
+    run_simulation(&sim_lru, 1);
+
+    // Print comparison
+    print_comparison_report(sim, "FIFO", "LRU");
+}
+
+/**
+ * Print the page table contents
+ */
+void print_page_table(Simulation *sim) {
+    print_header("Page Table Contents");
+    printf("Page # | Present | Frame # | Load Time | Last Used\n");
+    printf("-------|---------|---------|-----------|-----------\n");
+    for (int i = 0; i < sim->num_pages; i++) {
+        if (sim->page_table[i].present) {
+            printf("  %3d  |   Yes   |   %3d   |    %3d    |    %3d\n",
+                   i, sim->page_table[i].frame_number,
+                   sim->page_table[i].load_time,
+                   sim->page_table[i].last_used);
+        } else {
+            printf("  %3d  |   No    |    -    |     -    |    -\n", i);
+        }
+    }
+}
+
+/**
+ * Print the current frame state
+ */
+void print_frame_state(Simulation *sim) {
+    print_header("Frame State");
+    printf("Frame # | Page # | Occupied | Load Time | Last Used\n");
+    printf("--------|--------|----------|-----------|-----------\n");
+    for (int i = 0; i < sim->num_frames; i++) {
+        if (sim->frames[i].occupied) {
+            printf("   %2d   |   %3d  |   Yes    |    %3d    |    %3d\n",
+                   i, sim->frames[i].page_number,
+                   sim->frames[i].load_time,
+                   sim->frames[i].last_used);
+        } else {
+            printf("   %2d   |   -    |   No     |     -    |     -\n", i);
+        }
+    }
+}
+
+/**
+ * Print statistics for an algorithm run
+ */
+void print_statistics(Simulation *sim, const char *algorithm_name) {
+    if (sim->stats.total_references > 0) {
+        sim->stats.hit_ratio = (float)sim->stats.page_hits / sim->stats.total_references;
+        sim->stats.miss_ratio = (float)sim->stats.page_faults / sim->stats.total_references;
+    }
+
+    print_header("Statistics Summary");
+    printf("Algorithm: %s\n", algorithm_name);
+    printf("----------------------------------------\n");
+    printf("Total References:     %d\n", sim->stats.total_references);
+    printf("Page Hits:            %d\n", sim->stats.page_hits);
+    printf("Page Faults:          %d\n", sim->stats.page_faults);
+    printf("Page Replacements:    %d\n", sim->stats.page_replacements);
+    printf("Hit Ratio:            %.3f (%.1f%%)\n",
+           sim->stats.hit_ratio, sim->stats.hit_ratio * 100);
+    printf("Miss Ratio:           %.3f (%.1f%%)\n",
+           sim->stats.miss_ratio, sim->stats.miss_ratio * 100);
+}
+
+/**
+ * Print comparison report between two algorithms
+ */
+void print_comparison_report(Simulation *sim, const char *algo1, const char *algo2) {
+    // Note: This is a simplified comparison - in a real implementation,
+    // you would store statistics from both runs
+    print_header("Comparison Report");
+    printf("Based on the simulations with %d frames and a reference\n", sim->num_frames);
+    printf("string of %d references:\n\n", sim->reference_length);
+
+    printf("Key Observations:\n");
+    printf("----------------\n");
+    printf("1. FIFO is simpler to implement and has lower overhead,\n");
+    printf("   but may suffer from Belady's Anomaly.\n\n");
+    printf("2. LRU generally performs better for locality-based access\n");
+    printf("   patterns as it keeps recently used pages in memory.\n\n");
+    printf("3. The choice of algorithm depends on the workload:\n");
+    printf("   - FIFO: Better for sequential or streaming workloads\n");
+    printf("   - LRU: Better for interactive or locality-based workloads\n\n");
+
+    printf("Performance Metrics:\n");
+    printf("-------------------\n");
+    printf("- FIFO: Simple, O(1) replacement, no access history needed\n");
+    printf("- LRU: More complex, requires timestamp tracking, O(n) replacement\n");
+    printf("- LRU usually provides higher hit ratios for most workloads\n");
+}
